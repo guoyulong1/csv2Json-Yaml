@@ -95,7 +95,10 @@ class CSVJsonConverterGUI(QMainWindow):
     
     def __init__(self):
         super().__init__()
-        self.converter = CSVToJSONConverter()
+        # 获取当前脚本所在目录，构建配置文件的绝对路径
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        config_path = os.path.join(current_dir, "config", "mapping_config.json")
+        self.converter = CSVToJSONConverter(config_path)
         self.current_file_path = None
         self.data_frame = None
         
@@ -151,10 +154,16 @@ class CSVJsonConverterGUI(QMainWindow):
         toolbar_layout.addWidget(self.save_btn)
         
         # 导出JSON按钮
-        self.export_btn = QPushButton("导出JSON")
-        self.export_btn.clicked.connect(self.export_json)
-        self.export_btn.setEnabled(False)
-        toolbar_layout.addWidget(self.export_btn)
+        self.export_json_btn = QPushButton("导出JSON")
+        self.export_json_btn.clicked.connect(self.export_json)
+        self.export_json_btn.setEnabled(False)
+        toolbar_layout.addWidget(self.export_json_btn)
+        
+        # 导出YAML按钮
+        self.export_yaml_btn = QPushButton("导出YAML")
+        self.export_yaml_btn.clicked.connect(self.export_yaml)
+        self.export_yaml_btn.setEnabled(False)
+        toolbar_layout.addWidget(self.export_yaml_btn)
         
         # 添加弹性空间
         toolbar_layout.addStretch()
@@ -255,26 +264,49 @@ class CSVJsonConverterGUI(QMainWindow):
         
     def create_preview_tab(self, tab_widget):
         """创建JSON预览标签页"""
-        preview_tab = QWidget()
-        preview_layout = QVBoxLayout(preview_tab)
+        # JSON预览标签页
+        json_preview_tab = QWidget()
+        json_preview_layout = QVBoxLayout(json_preview_tab)
         
-        # 预览标题
-        preview_label = QLabel("JSON预览")
-        preview_label.setFont(QFont("Arial", 11, QFont.Bold))
-        preview_layout.addWidget(preview_label)
+        # JSON预览标题
+        json_preview_label = QLabel("JSON预览")
+        json_preview_label.setFont(QFont("Arial", 11, QFont.Bold))
+        json_preview_layout.addWidget(json_preview_label)
         
         # JSON预览文本框
         self.json_preview = QTextEdit()
         self.json_preview.setFont(QFont("Consolas", 10))
         self.json_preview.setReadOnly(True)
-        preview_layout.addWidget(self.json_preview)
+        json_preview_layout.addWidget(self.json_preview)
         
-        # 刷新预览按钮
-        refresh_btn = QPushButton("刷新预览")
-        refresh_btn.clicked.connect(self.refresh_json_preview)
-        preview_layout.addWidget(refresh_btn)
+        # JSON刷新预览按钮
+        json_refresh_btn = QPushButton("刷新JSON预览")
+        json_refresh_btn.clicked.connect(self.refresh_json_preview)
+        json_preview_layout.addWidget(json_refresh_btn)
         
-        tab_widget.addTab(preview_tab, "JSON预览")
+        tab_widget.addTab(json_preview_tab, "JSON预览")
+        
+        # YAML预览标签页
+        yaml_preview_tab = QWidget()
+        yaml_preview_layout = QVBoxLayout(yaml_preview_tab)
+        
+        # YAML预览标题
+        yaml_preview_label = QLabel("YAML预览")
+        yaml_preview_label.setFont(QFont("Arial", 11, QFont.Bold))
+        yaml_preview_layout.addWidget(yaml_preview_label)
+        
+        # YAML预览文本框
+        self.yaml_preview = QTextEdit()
+        self.yaml_preview.setFont(QFont("Consolas", 10))
+        self.yaml_preview.setReadOnly(True)
+        yaml_preview_layout.addWidget(self.yaml_preview)
+        
+        # YAML刷新预览按钮
+        yaml_refresh_btn = QPushButton("刷新YAML预览")
+        yaml_refresh_btn.clicked.connect(self.refresh_yaml_preview)
+        yaml_preview_layout.addWidget(yaml_refresh_btn)
+        
+        tab_widget.addTab(yaml_preview_tab, "YAML预览")
         
     def load_config(self):
         """加载配置"""
@@ -324,7 +356,8 @@ class CSVJsonConverterGUI(QMainWindow):
             
             # 启用按钮
             self.save_btn.setEnabled(True)
-            self.export_btn.setEnabled(True)
+            self.export_json_btn.setEnabled(True)
+            self.export_yaml_btn.setEnabled(True)
             
         except Exception as e:
             raise Exception(f"读取文件失败: {str(e)}")
@@ -366,6 +399,7 @@ class CSVJsonConverterGUI(QMainWindow):
     def on_data_changed(self):
         """数据改变事件"""
         self.refresh_json_preview()
+        self.refresh_yaml_preview()
         
     def save_csv(self):
         """保存CSV文件"""
@@ -427,6 +461,36 @@ class CSVJsonConverterGUI(QMainWindow):
                 
             except Exception as e:
                 QMessageBox.critical(self, "错误", f"导出JSON文件失败: {str(e)}")
+                
+    def export_yaml(self):
+        """导出YAML文件"""
+        if self.data_frame is None:
+            return
+            
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "导出YAML文件", "", "YAML文件 (*.yaml *.yml)"
+        )
+        
+        if file_path:
+            try:
+                # 先保存当前数据到临时CSV文件
+                temp_csv = "temp_yaml_export.csv"
+                updated_data = self.get_table_data()
+                updated_df = pd.DataFrame(updated_data)
+                updated_df.to_csv(temp_csv, index=False, header=False, encoding='utf-8')
+                
+                # 使用转换器转换为YAML
+                yaml_str = self.converter.convert_csv_to_yaml(temp_csv, file_path)
+                
+                # 删除临时文件
+                if os.path.exists(temp_csv):
+                    os.remove(temp_csv)
+                    
+                QMessageBox.information(self, "成功", "YAML文件导出成功！")
+                self.statusBar().showMessage(f"YAML文件已导出: {os.path.basename(file_path)}")
+                
+            except Exception as e:
+                QMessageBox.critical(self, "错误", f"导出YAML文件失败: {str(e)}")
             
     def refresh_json_preview(self):
         """刷新JSON预览"""
@@ -455,6 +519,31 @@ class CSVJsonConverterGUI(QMainWindow):
             
         except Exception as e:
             self.json_preview.setText(f"预览生成失败: {str(e)}")
+            
+    def refresh_yaml_preview(self):
+        """刷新YAML预览"""
+        if self.data_frame is None:
+            self.yaml_preview.setText("请先导入文件")
+            return
+            
+        try:
+            # 创建临时CSV文件进行转换
+            temp_csv = "temp_yaml_preview.csv"
+            updated_data = self.get_table_data()
+            updated_df = pd.DataFrame(updated_data)
+            updated_df.to_csv(temp_csv, index=False, header=False, encoding='utf-8')
+            
+            # 转换为YAML (静默模式，不打印消息)
+            yaml_str = self.converter.convert_csv_to_yaml(temp_csv, silent=True)
+            
+            # 删除临时文件
+            if os.path.exists(temp_csv):
+                os.remove(temp_csv)
+                
+            self.yaml_preview.setText(yaml_str)
+            
+        except Exception as e:
+            self.yaml_preview.setText(f"YAML预览生成失败: {str(e)}")
             
     def save_config(self):
         """保存配置"""

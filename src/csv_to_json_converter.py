@@ -55,6 +55,7 @@ class CSVToJSONConverter:
             },
             "lidar_models": {
                 "乐动STL50": "camsense_pma2_lidar",
+                "欢创PMA2": "camsense_pma2_lidar",
                 "无": None
             },
             "linelaser_models": {
@@ -62,17 +63,16 @@ class CSVToJSONConverter:
                 "无": None
             },
             "threedtof_models": {
+                "光鉴Nebula280": "guangjian_nebula280_3dtof",
                 "无": None
             },
             "rgb_models": {
                 "无": None
             },
-
             "special_values": {
                 "无": None,
                 "": None
             },
-
             "project_prefix": "project_"
         }
     
@@ -95,7 +95,8 @@ class CSVToJSONConverter:
         # 添加固定的类型映射
         self.chinese_to_english_map.update({
             "Sensor": "sensor",
-            "Trans": "comm"
+            "Trans": "comm",
+            "rpmsg": "ipc"
         })
     
     def normalize_sensor_name(self, sensor_type: str, model: str) -> Optional[str]:
@@ -155,37 +156,130 @@ class CSVToJSONConverter:
                 "body": {}
             }
             
+            sensor_params = {}
+            robot_params = {}
+            
             # 解析CSV数据
+            current_group = None
             for row in rows[1:]:  # 跳过标题行
                 if len(row) < 4:
                     continue
                     
-                version, type_category, sensor_type, value = row[0], row[1], row[2], row[3]
+                version, group, type_name, value = row[0], row[1], row[2], row[3]
                 
-                # 处理传感器数据
-                if type_category == "Sensor" and sensor_type and value:
-                    sensor_key = self.chinese_to_english_map.get(sensor_type)
-                    if sensor_key and sensor_key in project_data["sensor"]:
-                        normalized_name = self.normalize_sensor_name(sensor_type, value)
-                        project_data["sensor"][sensor_key] = normalized_name
+                # 如果group不为空，更新当前组
+                if group:
+                    current_group = group
                 
-                # 处理没有type_category但有传感器类型的行（如线结构光等）
-                elif not type_category and sensor_type and value:
-                    sensor_key = self.chinese_to_english_map.get(sensor_type)
+                # 处理传感器类型数据
+                if current_group == "Sensor_Type" and type_name:
+                    # 根据type_name确定传感器类型
+                    sensor_key = self.chinese_to_english_map.get(type_name)
                     if sensor_key and sensor_key in project_data["sensor"]:
-                        normalized_name = self.normalize_sensor_name(sensor_type, value)
-                        project_data["sensor"][sensor_key] = normalized_name
+                        if value and value != "无":
+                            normalized_name = self.normalize_sensor_name(type_name, value)
+                            project_data["sensor"][sensor_key] = normalized_name
+                        else:
+                            project_data["sensor"][sensor_key] = None
                         
                 # 处理通信数据
-                elif type_category == "Trans" and sensor_type and value:
-                    comm_key = self.chinese_to_english_map.get(sensor_type)
+                elif current_group == "Trans" and type_name and value:
+                    comm_key = self.chinese_to_english_map.get(type_name)
                     if comm_key:
                         comm_value = self.chinese_to_english_map.get(value, value)
                         project_data["comm"][comm_key] = comm_value
+                
+                # 处理传感器参数（如果有Define列的话）
+                elif current_group == "Sensor_Parameter" and len(row) > 5:
+                    define = row[5] if len(row) > 5 else None
+                    if define and value and value != "无":
+                        sensor_params[define] = self._convert_value(value)
+                
+                # 处理机器人参数
+                elif current_group == "robot" and len(row) > 5:
+                    define = row[5] if len(row) > 5 else None
+                    if define and value:
+                        robot_params[define] = self._convert_value(value)
+            
+            # 生成YAML文件
+            if sensor_params or robot_params:
+                self._generate_yaml_file(sensor_params, robot_params)
             
             result[project_id] = project_data
             
         return result
+    
+    def _convert_value(self, value: str):
+        """
+        转换值的类型
+        """
+        try:
+            # 尝试转换为浮点数
+            if '.' in value:
+                return float(value)
+            # 尝试转换为整数
+            return int(value)
+        except ValueError:
+            # 保持字符串
+            return value
+    
+    def _generate_yaml_file(self, sensor_params: Dict, robot_params: Dict, silent: bool = False):
+        """
+        生成YAML配置文件
+        """
+        yaml_content = []
+        
+        if sensor_params:
+            yaml_content.append("sensor:")
+            for key, value in sensor_params.items():
+                comment = self._get_param_comment(key)
+                if isinstance(value, str) and value.startswith('"') and value.endswith('"'):
+                    yaml_content.append(f"  {key}: {value}           {comment}")
+                else:
+                    yaml_content.append(f"  {key}: {value}           {comment}")
+        
+        if robot_params:
+            if yaml_content:
+                yaml_content.append("")
+            yaml_content.append("robot:")
+            for key, value in robot_params.items():
+                comment = self._get_param_comment(key)
+                if isinstance(value, str) and value.startswith('"') and value.endswith('"'):
+                    yaml_content.append(f"  {key}: {value}           {comment}")
+                else:
+                    yaml_content.append(f"  {key}: {value}           {comment}")
+        
+        # 确保输出目录存在
+        os.makedirs("output", exist_ok=True)
+        
+        # 写入YAML文件
+        with open("output/config.yaml", 'w', encoding='utf-8') as f:
+            f.write("\n".join(yaml_content))
+        
+        # if not silent:
+            # print(f"YAML配置文件已生成: output/config.yaml")
+    
+    def _get_param_comment(self, param_key: str) -> str:
+        """
+        获取参数的注释
+        """
+        comments = {
+            "LaserSerialPort": "#laser 串口号",
+            "LaserBiasDist": "#laser 距离偏差(m)",
+            "LaserBiasAngle": "#laser 角度偏差(度)",
+            "LineLaserSerialPort": "#linelaser 串口号",
+            "LinelaserBias": "#linelaser x轴偏差(m)",
+            "LinelaserHeight": "#linelaser 安装高度(m)",
+            "LinelaserVisualRange": "#linelaser 可视距离(m)",
+            "ThirdTofPort": "#3dtof 设备端口",
+            "ThirdTofBiasDist": "#3dtof 距离偏差(m)",
+            "ThirdTofBiasHight": "#3dtof 安装高度(m)",
+            "ThirdTofBiasLeft": "#3dtof 安装左右偏差(m)",
+            "RgbPort": "#rgb 设备端口",
+            "robot_radius": "#机器人半径(m)",
+            "RobotRadius": "#机器人半径(m)"
+        }
+        return comments.get(param_key, "#参数")
     
     def convert_csv_to_json(self, csv_file_path: str, output_json_path: str = None) -> str:
         """
@@ -205,6 +299,68 @@ class CSVToJSONConverter:
         
         return json_str
     
+    def convert_csv_to_yaml(self, csv_file_path: str, output_yaml_path: str = None, silent: bool = False) -> str:
+        """
+        将CSV文件转换为YAML格式
+        """
+        # 解析CSV获取参数
+        sensor_params = {}
+        robot_params = {}
+        
+        with open(csv_file_path, 'r', encoding='utf-8') as file:
+            csv_reader = csv.reader(file)
+            rows = list(csv_reader)
+            
+            current_group = None
+            for row in rows[1:]:  # 跳过标题行
+                if len(row) < 4:
+                    continue
+                    
+                version, group, type_name, value = row[0], row[1], row[2], row[3]
+                
+                # 如果group不为空，更新当前组
+                if group:
+                    current_group = group
+                
+                # 处理传感器参数（如果有Define列的话）
+                if current_group == "Sensor_Parameter" and len(row) > 5:
+                    define = row[5] if len(row) > 5 else None
+                    if define and value and value != "无":
+                        sensor_params[define] = self._convert_value(value)
+                
+                # 处理机器人参数
+                elif current_group == "robot" and len(row) > 5:
+                    define = row[5] if len(row) > 5 else None
+                    if define and value:
+                        robot_params[define] = self._convert_value(value)
+        
+        # 生成YAML内容
+        yaml_content = []
+        
+        if sensor_params:
+            yaml_content.append("sensor:")
+            for key, value in sensor_params.items():
+                comment = self._get_param_comment(key)
+                yaml_content.append(f"  {key}: {value}           {comment}")
+        
+        if robot_params:
+            if yaml_content:
+                yaml_content.append("")
+            yaml_content.append("robot:")
+            for key, value in robot_params.items():
+                comment = self._get_param_comment(key)
+                yaml_content.append(f"  {key}: {value}           {comment}")
+        
+        yaml_str = "\n".join(yaml_content)
+        
+        # 如果指定了输出路径，保存到文件
+        if output_yaml_path:
+            with open(output_yaml_path, 'w', encoding='utf-8') as f:
+                f.write(yaml_str)
+            if not silent:
+                print(f"YAML文件已保存到: {output_yaml_path}")
+        
+        return yaml_str
 
 
 def main():
@@ -214,7 +370,7 @@ def main():
     converter = CSVToJSONConverter()
     
     # CSV文件路径
-    csv_file = "csvdata/脚本_参数_编译选项_测试标准 - 编译选项.csv"
+    csv_file = "data/脚本_参数_编译选项_测试标准 - 编译选项.csv"
     
     # 检查文件是否存在
     if not os.path.exists(csv_file):

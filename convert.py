@@ -23,11 +23,11 @@ def main():
     # 初始化转换器
     converter = CSVToJSONConverter()
 
-    # 自动查找csvdata文件夹下的CSV文件
-    csv_files = glob.glob("csvdata/*.csv")
+    # 自动查找data文件夹下的CSV文件
+    csv_files = glob.glob("data/*.csv")
 
     if not csv_files:
-        print("❌ 在csvdata文件夹下未找到CSV文件")
+        print("❌ 在data文件夹下未找到CSV文件")
         return 1
 
     # 使用第一个找到的CSV文件
@@ -46,7 +46,7 @@ def main():
         
     except FileNotFoundError as e:
         print(f"❌ 文件未找到: {e}")
-        print("请确保CSV文件存在于 csvdata/ 目录中")
+        print("请确保CSV文件存在于 data/ 目录中")
     except Exception as e:
         print(f"❌ 转换失败: {e}")
         return 1
