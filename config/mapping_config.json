@@ -1,0 +1,37 @@
+{
+  "sensor_types": {
+    "雷达": "lidar",
+    "线结构光": "linelaser",
+    "3dToF": "threedtof",
+    "RGB": "rgb"
+  },
+  "communication_types": {
+    "大小核通信": "ipc"
+  },
+  "lidar_models": {
+    "一微T5C": "amicro_t5c_lidar",
+    "乐动STL50": "ld_stl50_lidar",
+    "欢创D3A3": "camsense_d3a3_lidar",
+    "欢创PMA2": "camsense_pma2_lidar",
+    "无": null
+  },
+  "linelaser_models": {
+    "一微ALF03": "amicro_alf03_linelaser",
+    "无": null
+  },
+  "threedtof_models": {
+    "欧菲OZT": "amicro_ozt_threedtof",
+    "光鉴Nebula280": "deptrum_nebula280_3dtof",
+    "无": null
+  },
+  "rgb_models": {
+    "无": null
+  },
+
+  "special_values": {
+    "无": null,
+    "": null
+  },
+
+  "project_prefix": "project_"
+}
