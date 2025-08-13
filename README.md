@@ -2,9 +2,36 @@
 
 一个简单易用的CSV到JSON转换工具，专门用于将传感器配置CSV文件转换为标准化的JSON格式。
 
+支持两种使用方式：
+- **图形界面版本**：提供直观的GUI界面，支持文件导入、数据预览编辑和JSON导出
+- **命令行版本**：适合批处理和自动化场景
+
 ## 🚀 快速开始
 
-### 使用方法
+### 图形界面版本（推荐）
+
+1. 安装依赖项：
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. 启动图形界面：
+   ```bash
+   python run_gui.py
+   ```
+   或者直接运行：
+   ```bash
+   python gui_app.py
+   ```
+
+3. 在GUI中：
+   - 点击"导入文件"选择Excel或CSV文件
+   - 在表格中预览和编辑数据
+   - 使用下拉菜单选择传感器型号（自动限制选项）
+   - 在"JSON预览"标签页查看转换结果
+   - 点击"导出JSON"保存结果
+
+### 命令行版本
 
 1. 将CSV文件放入 `csvdata/` 文件夹
 2. 运行转换命令：
@@ -16,7 +43,10 @@
 ### 项目结构
 
 ```
-├── convert.py              # 主转换脚本
+├── gui_app.py              # PyQt图形界面主程序
+├── run_gui.py              # GUI启动脚本
+├── convert.py              # 命令行转换脚本
+├── requirements.txt        # Python依赖项
 ├── config/
 │   └── mapping_config.json # 映射配置文件
 ├── csvdata/               # CSV文件目录
