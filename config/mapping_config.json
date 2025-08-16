@@ -17,6 +17,7 @@
   },
   "linelaser_models": {
     "一微ALF03": "amicro_alf03_linelaser",
+    "欢创F2C1": "camsense_f2c1_linelaser",
     "无": null
   },
   "threedtof_models": {
