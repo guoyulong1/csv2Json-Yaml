@@ -18,7 +18,7 @@ from PyQt5.QtWidgets import (
     QScrollArea, QFrame, QSizePolicy
 )
 from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QFont, QIcon
+from PyQt5.QtGui import QFont, QIcon, QColor
 
 # 添加src目录到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
@@ -51,7 +51,8 @@ class EditableTableWidget(QTableWidget):
             '线结构光': list(self.config_data.get('linelaser_models', {}).keys()),
             '3dToF': list(self.config_data.get('threedtof_models', {}).keys()),
             'RGB': list(self.config_data.get('rgb_models', {}).keys()),
-            '大小核通信': list(self.config_data.get('communication_types', {}).keys())
+            '大小核通信': list(self.config_data.get('communication_types', {}).keys()),
+            '版本号': list(self.config_data.get('version_numbers', {}).keys())
         }
         
     def setup_cell_constraints(self, row: int, col: int, cell_type: str):
@@ -74,7 +75,9 @@ class EditableTableWidget(QTableWidget):
             return widget.currentText()
         else:
             item = self.item(row, col)
-            return item.text() if item else ""
+            if item:
+                return item.text()
+            return ""
             
     def set_cell_value(self, row: int, col: int, value: str):
         """设置单元格值"""
@@ -367,34 +370,88 @@ class CSVJsonConverterGUI(QMainWindow):
         if self.data_frame is None:
             return
             
-        # 设置表格大小
         rows, cols = self.data_frame.shape
-        self.data_table.setRowCount(rows)
-        self.data_table.setColumnCount(cols)
         
-        # 设置表头
-        headers = [f"列{i+1}" for i in range(cols)]
+        # 检测非空列（至少保留前6列）
+        non_empty_cols = []
+        for col in range(cols):
+            has_data = False
+            for row in range(rows):
+                value = self.data_frame.iloc[row, col]
+                if pd.notna(value) and str(value).strip() != "":
+                    has_data = True
+                    break
+            if has_data or col < 6:  # 保留前6列，即使为空
+                non_empty_cols.append(col)
+        
+        display_cols = len(non_empty_cols)
+        
+        # 设置表格大小
+        self.data_table.setRowCount(rows)
+        self.data_table.setColumnCount(display_cols)
+        
+        # 设置表头（为前6列设置有意义的名称）
+        headers = []
+        for i, original_col in enumerate(non_empty_cols):
+            if original_col == 0:
+                headers.append("Version")
+            elif original_col == 1:
+                headers.append("Group")
+            elif original_col == 2:
+                headers.append("Type")
+            elif original_col == 3:
+                headers.append("Value")
+            elif original_col == 4:
+                headers.append("参数解释")
+            elif original_col == 5:
+                headers.append("Define")
+            else:
+                headers.append(f"列{original_col+1}")
+        
         self.data_table.setHorizontalHeaderLabels(headers)
         
-        # 填充数据
+        # 存储列映射关系，用于后续数据获取
+        self.column_mapping = non_empty_cols
+        
+        # 填充数据（使用列映射）
         for row in range(rows):
-            for col in range(cols):
-                value = self.data_frame.iloc[row, col]
+            for display_col in range(display_cols):
+                original_col = non_empty_cols[display_col]
+                value = self.data_frame.iloc[row, original_col]
                 if pd.isna(value):
                     value = ""
                 else:
                     value = str(value)
-                    
-                self.data_table.set_cell_value(row, col, value)
                 
-                # 为特定列设置约束
-                if col == 2 and row > 0:  # 传感器类型列
-                    sensor_type = self.data_table.get_cell_value(row, col)
-                    if sensor_type in ['雷达', '线结构光', '3dToF', 'RGB']:
-                        self.data_table.setup_cell_constraints(row, col+1, sensor_type)
+                # 直接设置单元格值，不进行任何填充处理
+                self.data_table.set_cell_value(row, display_col, value)
+                
+                # 为特定列设置约束（基于原始列索引）
+                if original_col == 0 and row > 0:  # 版本号列（原始第0列）
+                    self.data_table.setup_cell_constraints(row, display_col, '版本号')
+                elif original_col == 2 and row > 0:  # Type列（原始第2列）
+                    type_value = self.data_table.get_cell_value(row, display_col)
+                    if type_value in ['雷达', '线结构光', '3dToF', 'RGB']:
+                        # 传感器类型，为下一列（Value列）设置对应的型号下拉框
+                        # 需要找到Value列在显示列中的位置
+                        value_display_col = self._find_display_col_for_original(3, non_empty_cols)
+                        if value_display_col is not None:
+                            self.data_table.setup_cell_constraints(row, value_display_col, type_value)
+                    elif type_value == '大小核通信':
+                        # 通信类型，为下一列（Value列）设置通信方式下拉框
+                        value_display_col = self._find_display_col_for_original(3, non_empty_cols)
+                        if value_display_col is not None:
+                            self.data_table.setup_cell_constraints(row, value_display_col, '大小核通信')
                         
         # 调整列宽
         self.data_table.resizeColumnsToContents()
+    
+    def _find_display_col_for_original(self, original_col_index, non_empty_cols):
+        """查找原始列索引在显示列中的位置"""
+        try:
+            return non_empty_cols.index(original_col_index)
+        except ValueError:
+            return None
         
     def on_data_changed(self):
         """数据改变事件"""
@@ -423,14 +480,36 @@ class CSVJsonConverterGUI(QMainWindow):
                 
     def get_table_data(self) -> List[List[str]]:
         """获取表格数据"""
-        data = []
-        for row in range(self.data_table.rowCount()):
-            row_data = []
-            for col in range(self.data_table.columnCount()):
-                value = self.data_table.get_cell_value(row, col)
-                row_data.append(value)
-            data.append(row_data)
-        return data
+        # 如果有列映射信息，需要恢复到原始的完整列结构
+        if hasattr(self, 'column_mapping') and hasattr(self, 'data_frame'):
+            rows = self.data_table.rowCount()
+            original_cols = self.data_frame.shape[1]
+            
+            # 创建完整的数据结构
+            data = []
+            for row in range(rows):
+                row_data = [""] * original_cols
+                
+                # 填充显示列的数据到对应的原始列位置
+                for display_col in range(self.data_table.columnCount()):
+                    original_col = self.column_mapping[display_col]
+                    value = self.data_table.get_cell_value(row, display_col)
+                    
+                    # 保存所有列的值
+                    row_data[original_col] = value
+                
+                data.append(row_data)
+            return data
+        else:
+            # 回退到原始处理方式
+            data = []
+            for row in range(self.data_table.rowCount()):
+                row_data = []
+                for col in range(self.data_table.columnCount()):
+                    value = self.data_table.get_cell_value(row, col)
+                    row_data.append(value)
+                data.append(row_data)
+            return data
         
     def export_json(self):
         """导出JSON文件"""

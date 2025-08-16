@@ -34,5 +34,10 @@
     "": null
   },
 
-  "project_prefix": "project_"
+  "project_prefix": "project_",
+  
+  "version_numbers": {
+    "2537": "2537",
+    "2407": "2407"
+  }
 }
