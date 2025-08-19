@@ -202,69 +202,13 @@ class CSVJsonConverterGUI(QMainWindow):
         # 创建标签页
         tab_widget = QTabWidget()
         
-        # 配置标签页
-        self.create_config_tab(tab_widget)
-        
         # JSON预览标签页
         self.create_preview_tab(tab_widget)
         
         config_layout.addWidget(tab_widget)
         parent.addWidget(config_widget)
         
-    def create_config_tab(self, tab_widget):
-        """创建配置标签页"""
-        config_tab = QWidget()
-        config_layout = QVBoxLayout(config_tab)
-        
-        # 配置标题
-        config_label = QLabel("映射配置")
-        config_label.setFont(QFont("Arial", 11, QFont.Bold))
-        config_layout.addWidget(config_label)
-        
-        # 配置编辑区域
-        scroll_area = QScrollArea()
-        scroll_widget = QWidget()
-        scroll_layout = QVBoxLayout(scroll_widget)
-        
-        # 传感器类型配置
-        self.create_sensor_config_group(scroll_layout)
-        
-        # 通信类型配置
-        self.create_comm_config_group(scroll_layout)
-        
-        scroll_area.setWidget(scroll_widget)
-        scroll_area.setWidgetResizable(True)
-        config_layout.addWidget(scroll_area)
-        
-        # 保存配置按钮
-        save_config_btn = QPushButton("保存配置")
-        save_config_btn.clicked.connect(self.save_config)
-        config_layout.addWidget(save_config_btn)
-        
-        tab_widget.addTab(config_tab, "配置")
-        
-    def create_sensor_config_group(self, parent_layout):
-        """创建传感器配置组"""
-        sensor_group = QGroupBox("传感器配置")
-        sensor_layout = QGridLayout(sensor_group)
-        
-        # 这里可以添加传感器配置的具体控件
-        info_label = QLabel("传感器映射配置将在这里显示")
-        sensor_layout.addWidget(info_label, 0, 0)
-        
-        parent_layout.addWidget(sensor_group)
-        
-    def create_comm_config_group(self, parent_layout):
-        """创建通信配置组"""
-        comm_group = QGroupBox("通信配置")
-        comm_layout = QGridLayout(comm_group)
-        
-        # 这里可以添加通信配置的具体控件
-        info_label = QLabel("通信映射配置将在这里显示")
-        comm_layout.addWidget(info_label, 0, 0)
-        
-        parent_layout.addWidget(comm_group)
-        
+
     def create_preview_tab(self, tab_widget):
         """创建JSON预览标签页"""
         # JSON预览标签页
@@ -428,7 +372,10 @@ class CSVJsonConverterGUI(QMainWindow):
                 
                 # 为特定列设置约束（基于原始列索引）
                 if original_col == 0 and row > 0:  # 版本号列（原始第0列）
-                    self.data_table.setup_cell_constraints(row, display_col, '版本号')
+                    # 只有当单元格有值时才设置版本号约束
+                    cell_value = self.data_table.get_cell_value(row, display_col)
+                    if cell_value and cell_value.strip():
+                        self.data_table.setup_cell_constraints(row, display_col, '版本号')
                 elif original_col == 2 and row > 0:  # Type列（原始第2列）
                     type_value = self.data_table.get_cell_value(row, display_col)
                     if type_value in ['雷达', '线结构光', '3dToF', 'RGB']:

@@ -6,7 +6,8 @@
     "RGB": "rgb"
   },
   "communication_types": {
-    "大小核通信": "ipc"
+    "rpmsg": "rpmsg",
+    "mailbox": "mailbox"
   },
   "lidar_models": {
     "一微T5C": "amicro_t5c_lidar",
@@ -39,5 +40,21 @@
   "version_numbers": {
     "2537": "2537",
     "2407": "2407"
+  },
+  
+  "constraint_rules": {
+    "2407": {
+      "雷达": {
+        "excluded_models": ["欢创PMA2", "欧菲OZT"]
+      },
+      "3dToF": {
+        "excluded_models": ["欧菲OZT"]
+      }
+    },
+    "2537": {
+      "线结构光": {
+        "allowed_models": []
+      }
+    }
   }
 }
