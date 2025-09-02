@@ -229,6 +229,16 @@ class CSVToJSONConverter:
         """
         转换值的类型
         """
+        # 检查是否为二维数组格式 [[x,y],[a,b],...]
+        if value.startswith('[[') and value.endswith(']]'):
+            try:
+                # 使用eval安全解析二维数组（这里的数据来源可控）
+                parsed_array = eval(value)
+                if isinstance(parsed_array, list) and all(isinstance(item, list) for item in parsed_array):
+                    return parsed_array
+            except Exception as e:
+                pass
+        
         try:
             # 尝试转换为浮点数
             if '.' in value:
@@ -249,7 +259,12 @@ class CSVToJSONConverter:
             yaml_content.append("sensor:")
             for key, value in sensor_params.items():
                 comment = self._get_param_comment(key)
-                if isinstance(value, str) and value.startswith('"') and value.endswith('"'):
+                if isinstance(value, list) and all(isinstance(item, list) for item in value):
+                    # 处理二维数组格式
+                    yaml_content.append(f"  {key}:           {comment}")
+                    for item in value:
+                        yaml_content.append(f"    - {item}")
+                elif isinstance(value, str) and value.startswith('"') and value.endswith('"'):
                     yaml_content.append(f"  {key}: {value}           {comment}")
                 else:
                     yaml_content.append(f"  {key}: {value}           {comment}")
@@ -260,7 +275,12 @@ class CSVToJSONConverter:
             yaml_content.append("robot:")
             for key, value in robot_params.items():
                 comment = self._get_param_comment(key)
-                if isinstance(value, str) and value.startswith('"') and value.endswith('"'):
+                if isinstance(value, list) and all(isinstance(item, list) for item in value):
+                    # 处理二维数组格式
+                    yaml_content.append(f"  {key}:           {comment}")
+                    for item in value:
+                        yaml_content.append(f"    - {item}")
+                elif isinstance(value, str) and value.startswith('"') and value.endswith('"'):
                     yaml_content.append(f"  {key}: {value}           {comment}")
                 else:
                     yaml_content.append(f"  {key}: {value}           {comment}")
@@ -356,24 +376,12 @@ class CSVToJSONConverter:
                     if define and value:
                         robot_params[define] = self._convert_value(value)
         
-        # 生成YAML内容
-        yaml_content = []
+        # 使用_generate_yaml_file方法生成YAML内容（支持二维数组）
+        self._generate_yaml_file(sensor_params, robot_params, silent=True)
         
-        if sensor_params:
-            yaml_content.append("sensor:")
-            for key, value in sensor_params.items():
-                comment = self._get_param_comment(key)
-                yaml_content.append(f"  {key}: {value}           {comment}")
-        
-        if robot_params:
-            if yaml_content:
-                yaml_content.append("")
-            yaml_content.append("robot:")
-            for key, value in robot_params.items():
-                comment = self._get_param_comment(key)
-                yaml_content.append(f"  {key}: {value}           {comment}")
-        
-        yaml_str = "\n".join(yaml_content)
+        # 读取生成的YAML文件内容
+        with open("output/config.yaml", 'r', encoding='utf-8') as f:
+            yaml_str = f.read()
         
         # 如果指定了输出路径，保存到文件
         if output_yaml_path:
