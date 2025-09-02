@@ -158,6 +158,8 @@ class CSVToJSONConverter:
             
             sensor_params = {}
             robot_params = {}
+            # 存储参数解释信息，用于生成注释
+            self.param_descriptions = {}
             
             # 解析CSV数据
             current_group = None
@@ -194,12 +196,26 @@ class CSVToJSONConverter:
                     define = row[5] if len(row) > 5 else None
                     if define and value and value != "无":
                         sensor_params[define] = self._convert_value(value)
+                        # 收集参数解释信息作为注释（Meaning列是第5列，索引4）
+                        if len(row) > 4 and row[4]:  # Meaning列在第5列（索引4）
+                            description = row[4].strip()
+                            # 去掉最外面的括号
+                            if description.startswith('(') and description.endswith(')'):
+                                description = description[1:-1]
+                            self.param_descriptions[define] = description
                 
                 # 处理机器人参数
                 elif current_group == "robot" and len(row) > 5:
                     define = row[5] if len(row) > 5 else None
                     if define and value:
                         robot_params[define] = self._convert_value(value)
+                        # 收集参数解释信息作为注释（Meaning列是第5列，索引4）
+                        if len(row) > 4 and row[4]:  # Meaning列在第5列（索引4）
+                            description = row[4].strip()
+                            # 去掉最外面的括号
+                            if description.startswith('(') and description.endswith(')'):
+                                description = description[1:-1]
+                            self.param_descriptions[define] = description
             
             # 生成YAML文件
             if sensor_params or robot_params:
@@ -263,6 +279,12 @@ class CSVToJSONConverter:
         """
         获取参数的注释
         """
+        # 优先使用从CSV参数解释栏收集的信息
+        if hasattr(self, 'param_descriptions') and param_key in self.param_descriptions:
+            description = self.param_descriptions[param_key]
+            return f"#{description}"
+        
+        # 如果没有找到，使用预定义的注释
         comments = {
             "LaserSerialPort": "#laser 串口号",
             "LaserBiasDist": "#laser 距离偏差(m)",
